@@ -20,18 +20,19 @@ st.set_page_config(
 
 
 # =========================================================
-# NLTK
+# NLTK STOPWORDS
 # =========================================================
 
 try:
     STOP_WORDS = set(stopwords.words("english"))
+
 except LookupError:
     nltk.download("stopwords", quiet=True)
     STOP_WORDS = set(stopwords.words("english"))
 
 
 # =========================================================
-# LOAD MODEL + VECTORIZER
+# LOAD MODEL AND TF-IDF VECTORIZER
 # =========================================================
 
 @st.cache_resource
@@ -47,7 +48,7 @@ model, tfidf_vectorizer = load_artifacts()
 
 
 # =========================================================
-# EMOTION MAPPING
+# EMOTION LABELS
 # =========================================================
 
 emotion_labels = {
@@ -60,6 +61,10 @@ emotion_labels = {
 }
 
 
+# =========================================================
+# EMOTION ICONS
+# =========================================================
+
 emotion_icons = {
     "Sadness": "😢",
     "Anger": "😠",
@@ -70,7 +75,12 @@ emotion_icons = {
 }
 
 
+# =========================================================
+# EMOTION DESCRIPTIONS
+# =========================================================
+
 emotion_descriptions = {
+
     "Sadness":
         "The text expresses sadness, disappointment, loneliness, or emotional pain.",
 
@@ -92,19 +102,24 @@ emotion_descriptions = {
 
 
 # =========================================================
-# PREPROCESSING
+# TEXT PREPROCESSING
 # =========================================================
 
 def preprocess_text(text):
 
+    # Convert to lowercase
     text = text.lower()
 
+    # Remove numbers
     text = re.sub(r"\d+", "", text)
 
+    # Remove non-ASCII characters
     text = text.encode("ascii", "ignore").decode("ascii")
 
+    # Split into words
     words = text.split()
 
+    # Remove English stopwords
     words = [
         word
         for word in words
@@ -123,18 +138,20 @@ if "input_text" not in st.session_state:
 
 
 # =========================================================
-# CUSTOM UI
+# CUSTOM CSS
 # =========================================================
 
 st.html("""
 <style>
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import url(
+    'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap'
+);
 
 
-/* ========================================================
+/* =====================================================
    GLOBAL
-   ======================================================== */
+   ===================================================== */
 
 .stApp {
 
@@ -164,9 +181,9 @@ st.html("""
 }
 
 
-/* ========================================================
+/* =====================================================
    HERO
-   ======================================================== */
+   ===================================================== */
 
 .hero {
 
@@ -239,9 +256,9 @@ st.html("""
 }
 
 
-/* ========================================================
+/* =====================================================
    STAT CARDS
-   ======================================================== */
+   ===================================================== */
 
 .stat-card {
 
@@ -290,9 +307,9 @@ st.html("""
 }
 
 
-/* ========================================================
+/* =====================================================
    MAIN CARDS
-   ======================================================== */
+   ===================================================== */
 
 .main-card {
 
@@ -333,9 +350,9 @@ st.html("""
 }
 
 
-/* ========================================================
+/* =====================================================
    TEXT AREA
-   ======================================================== */
+   ===================================================== */
 
 textarea {
 
@@ -362,9 +379,9 @@ textarea:focus {
 }
 
 
-/* ========================================================
+/* =====================================================
    ANALYZE BUTTON
-   ======================================================== */
+   ===================================================== */
 
 .stButton > button {
 
@@ -401,9 +418,9 @@ textarea:focus {
 }
 
 
-/* ========================================================
+/* =====================================================
    EXAMPLE BUTTONS
-   ======================================================== */
+   ===================================================== */
 
 .example-button {
 
@@ -424,9 +441,9 @@ textarea:focus {
 }
 
 
-/* ========================================================
-   PREDICTION
-   ======================================================== */
+/* =====================================================
+   RESULT CARD
+   ===================================================== */
 
 .result-card {
 
@@ -494,9 +511,9 @@ textarea:focus {
 }
 
 
-/* ========================================================
-   PROBABILITY
-   ======================================================== */
+/* =====================================================
+   PROBABILITY CARD
+   ===================================================== */
 
 .probability-card {
 
@@ -535,9 +552,88 @@ textarea:focus {
 }
 
 
-/* ========================================================
+/* =====================================================
+   PROBABILITY BARS
+   ===================================================== */
+
+.probability-row {
+
+    margin: 17px 0;
+
+}
+
+
+.probability-top {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    margin-bottom: 7px;
+
+}
+
+
+.probability-emotion {
+
+    color: #d5d8df;
+
+    font-size: 13px;
+
+    font-weight: 500;
+
+}
+
+
+.probability-value {
+
+    color: #9ca3af;
+
+    font-family:
+        'Space Mono',
+        monospace;
+
+    font-size: 10px;
+
+}
+
+
+.probability-background {
+
+    width: 100%;
+
+    height: 8px;
+
+    background: #20242e;
+
+    border-radius: 20px;
+
+    overflow: hidden;
+
+}
+
+
+.probability-fill {
+
+    height: 100%;
+
+    background:
+        linear-gradient(
+            90deg,
+            #7357e8,
+            #a78bfa
+        );
+
+    border-radius: 20px;
+
+}
+
+
+/* =====================================================
    FOOTER
-   ======================================================== */
+   ===================================================== */
 
 .footer {
 
@@ -556,7 +652,6 @@ textarea:focus {
     margin-top: 55px;
 
 }
-
 
 </style>
 """)
@@ -592,6 +687,7 @@ st.html("""
 # =========================================================
 
 col1, col2, col3, col4 = st.columns(4)
+
 
 with col1:
 
@@ -662,7 +758,7 @@ with col4:
 
 
 # =========================================================
-# SPACE
+# SPACING
 # =========================================================
 
 st.write("")
@@ -679,7 +775,7 @@ left, right = st.columns(
 
 
 # =========================================================
-# LEFT
+# LEFT PANEL
 # =========================================================
 
 with left:
@@ -716,7 +812,7 @@ with left:
 
 
 # =========================================================
-# RIGHT
+# RIGHT PANEL
 # =========================================================
 
 with right:
@@ -737,10 +833,27 @@ with right:
 
 
     examples = [
-        ("😄", "I'm so happy that everything worked out."),
-        ("😠", "This situation is really frustrating me."),
-        ("😢", "I feel lonely and disappointed today."),
-        ("😨", "I'm worried about what might happen.")
+
+        (
+            "😄",
+            "I'm so happy that everything worked out."
+        ),
+
+        (
+            "😠",
+            "This situation is really frustrating me."
+        ),
+
+        (
+            "😢",
+            "I feel lonely and disappointed today."
+        ),
+
+        (
+            "😨",
+            "I'm worried about what might happen."
+        )
+
     ]
 
 
@@ -758,7 +871,7 @@ with right:
 
 
 # =========================================================
-# ANALYZE
+# ANALYSIS
 # =========================================================
 
 if analyze_button:
@@ -771,27 +884,27 @@ if analyze_button:
 
     else:
 
-        # -------------------------------------------------
-        # PREPROCESS
-        # -------------------------------------------------
+        # =================================================
+        # PREPROCESSING
+        # =================================================
 
         cleaned_text = preprocess_text(
             user_text
         )
 
 
-        # -------------------------------------------------
-        # TF-IDF
-        # -------------------------------------------------
+        # =================================================
+        # TF-IDF TRANSFORMATION
+        # =================================================
 
         text_vector = tfidf_vectorizer.transform(
             [cleaned_text]
         )
 
 
-        # -------------------------------------------------
+        # =================================================
         # MODEL PREDICTION
-        # -------------------------------------------------
+        # =================================================
 
         prediction = model.predict(
             text_vector
@@ -806,9 +919,9 @@ if analyze_button:
         )
 
 
-        # -------------------------------------------------
-        # PROBABILITIES
-        # -------------------------------------------------
+        # =================================================
+        # PROBABILITY PREDICTION
+        # =================================================
 
         probabilities = model.predict_proba(
             text_vector
@@ -816,7 +929,7 @@ if analyze_button:
 
 
         # =================================================
-        # RESULT
+        # RESULT CARD
         # =================================================
 
         icon = emotion_icons.get(
@@ -848,6 +961,12 @@ if analyze_button:
         # DESCRIPTION
         # =================================================
 
+        description = emotion_descriptions.get(
+            predicted_emotion,
+            "Emotion predicted by the model."
+        )
+
+
         st.html(f"""
         <div class="main-card" style="margin-top:18px;">
 
@@ -856,10 +975,7 @@ if analyze_button:
             </div>
 
             <div class="card-description">
-                {emotion_descriptions.get(
-                    predicted_emotion,
-                    "Emotion predicted by the model."
-                )}
+                {description}
             </div>
 
         </div>
@@ -903,6 +1019,16 @@ if analyze_button:
 
 
         # =================================================
+        # SORT PROBABILITIES
+        # =================================================
+
+        probability_df = probability_df.sort_values(
+            "Probability",
+            ascending=False
+        ).reset_index(drop=True)
+
+
+        # =================================================
         # PROBABILITY HEADER
         # =================================================
 
@@ -914,8 +1040,8 @@ if analyze_button:
             </div>
 
             <div class="probability-subtitle">
-                Probability distribution generated by
-                the Logistic Regression classifier.
+                Probability distribution generated by the
+                Logistic Regression classifier.
             </div>
 
         </div>
@@ -923,20 +1049,51 @@ if analyze_button:
 
 
         # =================================================
-        # SAFE CHART
+        # CUSTOM PROBABILITY BARS
+        #
+        # IMPORTANT:
+        # No st.bar_chart()
+        # No Altair
+        # No Vega chart
         # =================================================
 
-        chart_df = probability_df.set_index(
-            "Emotion"
-        )
+        for _, row in probability_df.iterrows():
+
+            emotion = row["Emotion"]
+
+            probability = float(
+                row["Probability"]
+            )
+
+            percentage = probability * 100
 
 
-        st.bar_chart(
-            chart_df[
-                "Probability"
-            ],
-            height=300
-        )
+            st.html(f"""
+            <div class="probability-row">
+
+                <div class="probability-top">
+
+                    <span class="probability-emotion">
+                        {emotion}
+                    </span>
+
+                    <span class="probability-value">
+                        {percentage:.2f}%
+                    </span>
+
+                </div>
+
+                <div class="probability-background">
+
+                    <div
+                        class="probability-fill"
+                        style="width: {percentage:.2f}%;">
+                    </div>
+
+                </div>
+
+            </div>
+            """)
 
 
         # =================================================
@@ -949,12 +1106,6 @@ if analyze_button:
         display_df["Probability"] = (
             display_df["Probability"] * 100
         ).round(2)
-
-
-        display_df = display_df.sort_values(
-            "Probability",
-            ascending=False
-        )
 
 
         display_df["Probability"] = (
@@ -1012,7 +1163,7 @@ The model predicts one of six emotions:
 **5. Probability Distribution**
 
 The classifier's probability distribution is
-shown below the prediction.
+displayed using custom probability bars.
 """)
 
 
