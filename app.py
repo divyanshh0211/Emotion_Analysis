@@ -1,51 +1,41 @@
 import streamlit as st
-import joblib
-import nltk
 import pandas as pd
+import joblib
+import re
+import nltk
 
-from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
 
-# ============================================================
+# =========================================================
 # PAGE CONFIG
-# ============================================================
+# =========================================================
 
 st.set_page_config(
-    page_title="EmotiSense",
+    page_title="EmotiSense | Emotion Analysis",
     page_icon="🧠",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 
-# ============================================================
-# NLTK SETUP
-# ============================================================
+# =========================================================
+# NLTK
+# =========================================================
+
+try:
+    STOP_WORDS = set(stopwords.words("english"))
+except LookupError:
+    nltk.download("stopwords", quiet=True)
+    STOP_WORDS = set(stopwords.words("english"))
+
+
+# =========================================================
+# LOAD MODEL + VECTORIZER
+# =========================================================
 
 @st.cache_resource
-def get_stopwords():
-
-    try:
-        return set(stopwords.words("english"))
-
-    except LookupError:
-
-        nltk.download("punkt")
-        nltk.download("punkt_tab")
-        nltk.download("stopwords")
-
-        return set(stopwords.words("english"))
-
-
-stop_words = get_stopwords()
-
-
-# ============================================================
-# LOAD MODEL
-# ============================================================
-
-@st.cache_resource
-def load_model():
+def load_artifacts():
 
     model = joblib.load("emotion_logistic_model.pkl")
     vectorizer = joblib.load("tfidf_vectorizer.pkl")
@@ -53,12 +43,12 @@ def load_model():
     return model, vectorizer
 
 
-model, vectorizer = load_model()
+model, tfidf_vectorizer = load_artifacts()
 
 
-# ============================================================
+# =========================================================
 # EMOTION MAPPING
-# ============================================================
+# =========================================================
 
 emotion_labels = {
     0: "Sadness",
@@ -71,454 +61,859 @@ emotion_labels = {
 
 
 emotion_icons = {
-    "Sadness": "😔",
-    "Anger": "😡",
+    "Sadness": "😢",
+    "Anger": "😠",
     "Love": "❤️",
-    "Surprise": "😮",
+    "Surprise": "😲",
     "Fear": "😨",
-    "Joy": "😊"
+    "Joy": "😄"
 }
 
 
-emotion_description = {
+emotion_descriptions = {
     "Sadness":
-        "The text expresses sadness or disappointment.",
+        "The text expresses sadness, disappointment, loneliness, or emotional pain.",
 
     "Anger":
-        "The text contains signs of frustration or anger.",
+        "The text expresses frustration, irritation, disagreement, or anger.",
 
     "Love":
-        "The text expresses affection, care or emotional connection.",
+        "The text expresses affection, care, attachment, or emotional connection.",
 
     "Surprise":
-        "The text expresses unexpectedness or amazement.",
+        "The text expresses something unexpected, unusual, or shocking.",
 
     "Fear":
-        "The text expresses worry, nervousness or fear.",
+        "The text expresses worry, nervousness, anxiety, or fear.",
 
     "Joy":
-        "The text expresses happiness, excitement or positivity."
+        "The text expresses happiness, excitement, satisfaction, or a positive feeling."
 }
 
 
-# ============================================================
+# =========================================================
 # PREPROCESSING
-# ============================================================
+# =========================================================
 
 def preprocess_text(text):
 
-    # Lowercase
     text = text.lower()
 
-    # Remove numbers
-    text = "".join(
-        char for char in text
-        if not char.isdigit()
-    )
+    text = re.sub(r"\d+", "", text)
 
-    # Remove emojis / non ASCII
-    text = "".join(
-        char for char in text
-        if char.isascii()
-    )
+    text = text.encode("ascii", "ignore").decode("ascii")
 
-    # Tokenize
-    words = word_tokenize(text)
+    words = text.split()
 
-    # Remove stopwords
     words = [
         word
         for word in words
-        if word.lower() not in stop_words
+        if word not in STOP_WORDS
     ]
 
     return " ".join(words)
 
 
-# ============================================================
-# GLOBAL CSS
-# ============================================================
+# =========================================================
+# SESSION STATE
+# =========================================================
+
+if "input_text" not in st.session_state:
+    st.session_state.input_text = ""
+
+
+# =========================================================
+# CUSTOM UI
+# =========================================================
 
 st.html("""
 <style>
 
-body {
-    background: #0b0d12;
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+
+/* ========================================================
+   GLOBAL
+   ======================================================== */
+
+.stApp {
+
+    background:
+        radial-gradient(
+            circle at 50% -20%,
+            rgba(129, 91, 255, 0.10),
+            transparent 38%
+        ),
+        #0b0d12;
+
+    color: #f5f5f7;
+
+    font-family:
+        'DM Sans',
+        sans-serif;
 }
 
-.main-title {
-    font-size: 56px;
-    font-weight: 800;
-    text-align: center;
-    margin-top: 15px;
-    margin-bottom: 10px;
 
-    background: linear-gradient(
-        90deg,
-        #ffffff,
-        #c4b5fd,
-        #93c5fd
-    );
+.block-container {
+
+    max-width: 1450px;
+
+    padding-top: 45px;
+    padding-bottom: 70px;
+
+}
+
+
+/* ========================================================
+   HERO
+   ======================================================== */
+
+.hero {
+
+    text-align: center;
+
+    margin-bottom: 48px;
+
+}
+
+
+.hero-tag {
+
+    color: #a78bfa;
+
+    font-family:
+        'Space Mono',
+        monospace;
+
+    font-size: 12px;
+
+    letter-spacing: 0.5px;
+
+    margin-bottom: 18px;
+
+}
+
+
+.hero-title {
+
+    font-size: 48px;
+
+    line-height: 1;
+
+    font-weight: 700;
+
+    letter-spacing: -2px;
+
+    margin: 0;
+
+    background:
+        linear-gradient(
+            90deg,
+            #ffffff 0%,
+            #b99cff 50%,
+            #ffffff 100%
+        );
 
     -webkit-background-clip: text;
+
     -webkit-text-fill-color: transparent;
+
 }
 
-.subtitle {
-    text-align: center;
+
+.hero-description {
+
+    margin-top: 22px;
+
     color: #9ca3af;
-    font-size: 17px;
-    margin-bottom: 35px;
+
+    font-size: 15px;
+
 }
 
-.badge {
+
+.hero-description strong {
+
+    color: #d7d9df;
+
+}
+
+
+/* ========================================================
+   STAT CARDS
+   ======================================================== */
+
+.stat-card {
+
+    background: #12151d;
+
+    border: 1px solid #252a35;
+
+    border-radius: 14px;
+
+    padding: 25px 15px;
+
     text-align: center;
-    color: #a5b4fc;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 12px;
+
+    min-height: 98px;
+
 }
 
-.card {
-    background: #141720;
-    border: 1px solid #252a36;
-    border-radius: 18px;
-    padding: 24px;
-    margin-bottom: 20px;
-}
 
-.card-title {
-    color: #f3f4f6;
-    font-size: 21px;
+.stat-value {
+
+    color: #f5f5f7;
+
+    font-size: 23px;
+
     font-weight: 700;
-    margin-bottom: 7px;
+
 }
 
-.card-text {
-    color: #8b93a1;
-    font-size: 14px;
-    line-height: 1.5;
+
+.stat-label {
+
+    margin-top: 10px;
+
+    color: #7f8796;
+
+    font-family:
+        'Space Mono',
+        monospace;
+
+    font-size: 8px;
+
+    letter-spacing: 1px;
+
+    text-transform: uppercase;
+
 }
 
-.metric {
-    background: #141720;
-    border: 1px solid #252a36;
-    border-radius: 15px;
-    padding: 20px;
-    text-align: center;
+
+/* ========================================================
+   MAIN CARDS
+   ======================================================== */
+
+.main-card {
+
+    background: #12151d;
+
+    border: 1px solid #252a35;
+
+    border-radius: 16px;
+
+    padding: 27px;
+
 }
 
-.metric-value {
-    color: #ffffff;
-    font-size: 27px;
-    font-weight: 800;
+
+.card-heading {
+
+    color: #f4f4f5;
+
+    font-size: 17px;
+
+    font-weight: 700;
+
+    margin-bottom: 10px;
+
 }
 
-.metric-label {
+
+.card-description {
+
     color: #858c9b;
-    font-size: 11px;
-    margin-top: 5px;
-    letter-spacing: 0.5px;
+
+    font-size: 12px;
+
+    line-height: 1.6;
+
+    margin-bottom: 18px;
+
 }
 
-.result {
-    background: linear-gradient(
-        135deg,
-        rgba(99,102,241,0.16),
-        rgba(139,92,246,0.08)
+
+/* ========================================================
+   TEXT AREA
+   ======================================================== */
+
+textarea {
+
+    background: #1b1e27 !important;
+
+    color: #f4f4f5 !important;
+
+    border: 1px solid #292f3b !important;
+
+    border-radius: 10px !important;
+
+    font-size: 14px !important;
+
+}
+
+
+textarea:focus {
+
+    border-color: #7357e8 !important;
+
+    box-shadow:
+        0 0 0 1px #7357e8 !important;
+
+}
+
+
+/* ========================================================
+   ANALYZE BUTTON
+   ======================================================== */
+
+.stButton > button {
+
+    background: transparent !important;
+
+    border: 1px solid #3a4050 !important;
+
+    color: #e8e9ed !important;
+
+    border-radius: 8px !important;
+
+    height: 42px !important;
+
+    font-size: 13px !important;
+
+    font-weight: 500 !important;
+
+    transition: all 0.2s ease;
+
+}
+
+
+.stButton > button:hover {
+
+    border-color: #8b72f2 !important;
+
+    background: rgba(
+        139,
+        114,
+        242,
+        0.08
+    ) !important;
+
+}
+
+
+/* ========================================================
+   EXAMPLE BUTTONS
+   ======================================================== */
+
+.example-button {
+
+    background: #10131a;
+
+    border: 1px solid #292f3b;
+
+    border-radius: 9px;
+
+    padding: 12px 13px;
+
+    margin-bottom: 9px;
+
+    color: #cfd2da;
+
+    font-size: 11px;
+
+}
+
+
+/* ========================================================
+   PREDICTION
+   ======================================================== */
+
+.result-card {
+
+    margin-top: 25px;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(116, 87, 235, 0.14),
+            rgba(22, 25, 34, 0.95)
+        );
+
+    border: 1px solid rgba(
+        115,
+        87,
+        235,
+        0.35
     );
 
-    border: 1px solid rgba(129,140,248,0.25);
-    border-radius: 20px;
-    padding: 35px;
+    border-radius: 16px;
+
+    padding: 34px;
+
     text-align: center;
-    margin-top: 25px;
-    margin-bottom: 25px;
+
 }
+
 
 .result-icon {
-    font-size: 60px;
+
+    font-size: 50px;
+
 }
 
-.result-small {
-    color: #8b93a1;
-    font-size: 12px;
+
+.result-label {
+
+    color: #898fa0;
+
+    font-family:
+        'Space Mono',
+        monospace;
+
+    font-size: 9px;
+
     letter-spacing: 1.5px;
-    margin-top: 8px;
+
+    text-transform: uppercase;
+
+    margin-top: 12px;
+
 }
+
 
 .result-emotion {
+
     color: #ffffff;
-    font-size: 40px;
-    font-weight: 800;
-    margin-top: 5px;
-}
 
-.result-confidence {
-    color: #a5b4fc;
-    font-size: 16px;
+    font-size: 32px;
+
+    font-weight: 700;
+
     margin-top: 8px;
+
 }
 
-.result-description {
-    color: #9ca3af;
-    font-size: 14px;
-    margin-top: 12px;
+
+/* ========================================================
+   PROBABILITY
+   ======================================================== */
+
+.probability-card {
+
+    margin-top: 25px;
+
+    background: #12151d;
+
+    border: 1px solid #252a35;
+
+    border-radius: 16px;
+
+    padding: 27px;
+
 }
 
-.example {
-    background: #10131a;
-    border: 1px solid #282d39;
-    border-radius: 10px;
-    padding: 12px;
-    margin-top: 9px;
-    color: #b5bbc7;
-    font-size: 13px;
+
+.probability-title {
+
+    color: #f3f4f6;
+
+    font-size: 17px;
+
+    font-weight: 700;
+
 }
+
+
+.probability-subtitle {
+
+    color: #858c9b;
+
+    font-size: 12px;
+
+    margin-top: 7px;
+
+}
+
+
+/* ========================================================
+   FOOTER
+   ======================================================== */
 
 .footer {
+
     text-align: center;
+
     color: #5f6674;
-    font-size: 12px;
-    margin-top: 50px;
-    padding-top: 20px;
-    border-top: 1px solid #20242d;
+
+    font-family:
+        'Space Mono',
+        monospace;
+
+    font-size: 9px;
+
+    letter-spacing: 0.5px;
+
+    margin-top: 55px;
+
 }
+
 
 </style>
 """)
 
 
-# ============================================================
+# =========================================================
 # HERO
-# ============================================================
+# =========================================================
 
 st.html("""
-<div class="badge">
-    ✦ NLP • MACHINE LEARNING • TEXT ANALYSIS
-</div>
+<div class="hero">
 
-<div class="main-title">
-    EmotiSense
-</div>
+    <div class="hero-tag">
+        ✦ NLP · MACHINE LEARNING · TEXT ANALYSIS
+    </div>
 
-<div class="subtitle">
-    Understand the emotion behind your words using
-    <b>Natural Language Processing</b> and Machine Learning.
+    <div class="hero-title">
+        EmotiSense
+    </div>
+
+    <div class="hero-description">
+        Understand the emotion behind your words using
+        <strong>Natural Language Processing</strong>
+        and <strong>Machine Learning</strong>.
+    </div>
+
 </div>
 """)
 
 
-# ============================================================
-# METRICS
-# ============================================================
+# =========================================================
+# STATISTICS
+# =========================================================
 
-c1, c2, c3, c4 = st.columns(4)
+col1, col2, col3, col4 = st.columns(4)
 
-with c1:
+with col1:
+
     st.html("""
-    <div class="metric">
-        <div class="metric-value">86%</div>
-        <div class="metric-label">MODEL ACCURACY</div>
+    <div class="stat-card">
+
+        <div class="stat-value">
+            86%
+        </div>
+
+        <div class="stat-label">
+            Model Accuracy
+        </div>
+
     </div>
     """)
 
-with c2:
+
+with col2:
+
     st.html("""
-    <div class="metric">
-        <div class="metric-value">6</div>
-        <div class="metric-label">EMOTION CLASSES</div>
+    <div class="stat-card">
+
+        <div class="stat-value">
+            6
+        </div>
+
+        <div class="stat-label">
+            Emotion Classes
+        </div>
+
     </div>
     """)
 
-with c3:
+
+with col3:
+
     st.html("""
-    <div class="metric">
-        <div class="metric-value">16K</div>
-        <div class="metric-label">TRAINING SAMPLES</div>
+    <div class="stat-card">
+
+        <div class="stat-value">
+            16K
+        </div>
+
+        <div class="stat-label">
+            Training Samples
+        </div>
+
     </div>
     """)
 
-with c4:
+
+with col4:
+
     st.html("""
-    <div class="metric">
-        <div class="metric-value">TF-IDF</div>
-        <div class="metric-label">TEXT REPRESENTATION</div>
+    <div class="stat-card">
+
+        <div class="stat-value">
+            TF-IDF
+        </div>
+
+        <div class="stat-label">
+            Text Representation
+        </div>
+
     </div>
     """)
 
+
+# =========================================================
+# SPACE
+# =========================================================
 
 st.write("")
 
 
-# ============================================================
-# MAIN SECTION
-# ============================================================
+# =========================================================
+# MAIN INPUT + EXAMPLES
+# =========================================================
 
-left, right = st.columns([1.5, 1], gap="large")
+left, right = st.columns(
+    [1.65, 1],
+    gap="large"
+)
 
 
-# ============================================================
-# INPUT
-# ============================================================
+# =========================================================
+# LEFT
+# =========================================================
 
 with left:
 
     st.html("""
-    <div class="card">
+    <div class="main-card">
 
-        <div class="card-title">
+        <div class="card-heading">
             Analyze a sentence
         </div>
 
-        <div class="card-text">
-            Enter any sentence and the NLP model will
-            identify the most likely emotion.
+        <div class="card-description">
+            Enter any sentence and the NLP model will identify
+            the most likely emotion.
         </div>
 
     </div>
     """)
 
-    text = st.text_area(
-        "Your text",
-        placeholder=(
-            "Example: I finally achieved my goal "
-            "and I couldn't be happier!"
-        ),
-        height=170,
+
+    user_text = st.text_area(
+        "Input",
+        value=st.session_state.input_text,
+        height=155,
+        placeholder="Type something like: I feel really happy today!",
         label_visibility="collapsed"
     )
 
-    analyze = st.button(
-        "✦  Analyze Emotion",
+
+    analyze_button = st.button(
+        "✦ Analyze Emotion",
         use_container_width=True
     )
 
 
-# ============================================================
-# EXAMPLES
-# ============================================================
+# =========================================================
+# RIGHT
+# =========================================================
 
 with right:
 
     st.html("""
-    <div class="card">
+    <div class="main-card">
 
-        <div class="card-title">
+        <div class="card-heading">
             Try an example
         </div>
 
-        <div class="card-text">
+        <div class="card-description">
             Test the model with different emotions.
-        </div>
-
-        <div class="example">
-            😊 I'm so happy that everything worked out.
-        </div>
-
-        <div class="example">
-            😡 This situation is really frustrating me.
-        </div>
-
-        <div class="example">
-            😔 I feel lonely and disappointed today.
-        </div>
-
-        <div class="example">
-            😨 I'm worried about what might happen.
         </div>
 
     </div>
     """)
 
 
-# ============================================================
-# PREDICTION
-# ============================================================
+    examples = [
+        ("😄", "I'm so happy that everything worked out."),
+        ("😠", "This situation is really frustrating me."),
+        ("😢", "I feel lonely and disappointed today."),
+        ("😨", "I'm worried about what might happen.")
+    ]
 
-if analyze:
 
-    if not text.strip():
+    for icon, example in examples:
+
+        if st.button(
+            f"{icon}  {example}",
+            key=f"example_{example}",
+            use_container_width=True
+        ):
+
+            st.session_state.input_text = example
+
+            st.rerun()
+
+
+# =========================================================
+# ANALYZE
+# =========================================================
+
+if analyze_button:
+
+    if not user_text.strip():
 
         st.warning(
-            "Please enter some text before analyzing."
+            "Please enter a sentence first."
         )
 
     else:
 
-        # Preprocess
-        cleaned_text = preprocess_text(text)
+        # -------------------------------------------------
+        # PREPROCESS
+        # -------------------------------------------------
 
+        cleaned_text = preprocess_text(
+            user_text
+        )
+
+
+        # -------------------------------------------------
         # TF-IDF
-        text_vector = vectorizer.transform(
+        # -------------------------------------------------
+
+        text_vector = tfidf_vectorizer.transform(
             [cleaned_text]
         )
 
-        # Prediction
+
+        # -------------------------------------------------
+        # MODEL PREDICTION
+        # -------------------------------------------------
+
         prediction = model.predict(
             text_vector
         )[0]
 
-        # Probabilities
+        prediction = int(prediction)
+
+
+        predicted_emotion = emotion_labels.get(
+            prediction,
+            str(prediction)
+        )
+
+
+        # -------------------------------------------------
+        # PROBABILITIES
+        # -------------------------------------------------
+
         probabilities = model.predict_proba(
             text_vector
         )[0]
 
-        # Emotion
-        emotion = emotion_labels[prediction]
 
-        confidence = (
-            probabilities[prediction] * 100
+        # =================================================
+        # RESULT
+        # =================================================
+
+        icon = emotion_icons.get(
+            predicted_emotion,
+            "🧠"
         )
 
-        icon = emotion_icons[emotion]
-
-        description = emotion_description[emotion]
-
-
-        # ====================================================
-        # RESULT
-        # ====================================================
 
         st.html(f"""
-        <div class="result">
+        <div class="result-card">
 
             <div class="result-icon">
                 {icon}
             </div>
 
-            <div class="result-small">
-                DETECTED EMOTION
+            <div class="result-label">
+                Detected Emotion
             </div>
 
             <div class="result-emotion">
-                {emotion}
-            </div>
-
-            <div class="result-confidence">
-                Model confidence: <b>{confidence:.1f}%</b>
-            </div>
-
-            <div class="result-description">
-                {description}
+                {predicted_emotion}
             </div>
 
         </div>
         """)
 
 
-        # ====================================================
-        # PROBABILITY
-        # ====================================================
+        # =================================================
+        # DESCRIPTION
+        # =================================================
+
+        st.html(f"""
+        <div class="main-card" style="margin-top:18px;">
+
+            <div class="card-heading">
+                What this means
+            </div>
+
+            <div class="card-description">
+                {emotion_descriptions.get(
+                    predicted_emotion,
+                    "Emotion predicted by the model."
+                )}
+            </div>
+
+        </div>
+        """)
+
+
+        # =================================================
+        # PROBABILITY DATA
+        # =================================================
+
+        probability_data = []
+
+
+        for class_index, probability in zip(
+            model.classes_,
+            probabilities
+        ):
+
+            class_index = int(
+                class_index
+            )
+
+
+            probability_data.append({
+
+                "Emotion":
+                    emotion_labels.get(
+                        class_index,
+                        str(class_index)
+                    ),
+
+                "Probability":
+                    float(probability)
+
+            })
+
+
+        probability_df = pd.DataFrame(
+            probability_data
+        )
+
+
+        # =================================================
+        # PROBABILITY HEADER
+        # =================================================
 
         st.html("""
-        <div class="card">
+        <div class="probability-card">
 
-            <div class="card-title">
+            <div class="probability-title">
                 Emotion Probability
             </div>
 
-            <div class="card-text">
+            <div class="probability-subtitle">
                 Probability distribution generated by
                 the Logistic Regression classifier.
             </div>
@@ -527,73 +922,106 @@ if analyze:
         """)
 
 
-        probability_df = pd.DataFrame({
+        # =================================================
+        # SAFE CHART
+        # =================================================
 
-            "Emotion": [
-                emotion_labels[i]
-                for i in range(len(probabilities))
+        chart_df = probability_df.set_index(
+            "Emotion"
+        )
+
+
+        st.bar_chart(
+            chart_df[
+                "Probability"
             ],
-
-            "Probability": probabilities * 100
-
-        })
+            height=300
+        )
 
 
-        probability_df = probability_df.sort_values(
+        # =================================================
+        # PROBABILITY TABLE
+        # =================================================
+
+        display_df = probability_df.copy()
+
+
+        display_df["Probability"] = (
+            display_df["Probability"] * 100
+        ).round(2)
+
+
+        display_df = display_df.sort_values(
             "Probability",
             ascending=False
         )
 
 
-        st.bar_chart(
-            probability_df.set_index("Emotion"),
-            y="Probability"
+        display_df["Probability"] = (
+            display_df["Probability"]
+            .astype(str)
+            + "%"
         )
 
 
-        # ====================================================
+        st.dataframe(
+            display_df,
+            hide_index=True,
+            use_container_width=True
+        )
+
+
+        # =================================================
         # MODEL EXPLANATION
-        # ====================================================
+        # =================================================
 
         with st.expander(
-            "🧠 How does the model work?"
+            "How the model works"
         ):
 
             st.markdown("""
-### 1. Text preprocessing
+### Prediction Pipeline
 
-The input is converted to lowercase and cleaned by removing numbers, emojis and English stopwords.
+**1. Text Preprocessing**
 
-### 2. TF-IDF
+The input text is converted to lowercase,
+numbers and non-ASCII characters are removed,
+and English stopwords are removed.
 
-The cleaned text is converted into numerical features using **Term Frequency–Inverse Document Frequency**.
+**2. TF-IDF**
 
-### 3. Logistic Regression
+The processed text is converted into numerical
+features using the fitted TF-IDF vectorizer.
 
-The trained Logistic Regression classifier receives the TF-IDF representation and predicts one of six emotions.
+**3. Logistic Regression**
 
-### 4. Probability
+The TF-IDF features are passed to the trained
+Logistic Regression classifier.
 
-The classifier produces a probability for every emotion, which is displayed in the chart above.
-            """)
+**4. Emotion Prediction**
+
+The model predicts one of six emotions:
+
+- Sadness
+- Anger
+- Love
+- Surprise
+- Fear
+- Joy
+
+**5. Probability Distribution**
+
+The classifier's probability distribution is
+shown below the prediction.
+""")
 
 
-# ============================================================
+# =========================================================
 # FOOTER
-# ============================================================
+# =========================================================
 
 st.html("""
 <div class="footer">
-
-    EmotiSense • NLP Emotion Analysis
-
-    <br><br>
-
-    TF-IDF + Logistic Regression
-
-    <br>
-
-    Machine Learning Project
-
+    EMOTISENSE · NLP EMOTION CLASSIFICATION
 </div>
 """)
